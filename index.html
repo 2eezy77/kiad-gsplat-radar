@@ -411,9 +411,7 @@ function nmFromKIAD(lat,lon) {
   return Math.sqrt(dlat*dlat+dlon*dlon);
 }
 function isKIAD(lat,lon,origin,dest) {
-  if (dest==='KIAD'||dest==='IAD') return true;
-  if (origin==='KIAD'||origin==='IAD') return true;
-  return nmFromKIAD(lat,lon)<=15;
+  return nmFromKIAD(lat,lon)<=50; // physical airspace only — KIAD TRACON ~50nm
 }
 
 // ═══════════════════════════════════════════════

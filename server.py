@@ -11,7 +11,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def proxy_aircraft(self):
         try:
-            bounds = "39.25,38.65,-77.15,-77.76"
+            bounds = "39.79,38.12,-76.38,-78.53"  # 50nm radius around KIAD
             url = f"https://data-cloud.flightradar24.com/zones/fcgi/feed.js?bounds={bounds}&faa=1&satellite=1&mlat=1&flarm=1&adsb=1&gnd=0&air=1&vehicles=0&estimated=0&maxage=14400&gliders=0&stats=0"
             req = urllib.request.Request(url, headers={
                 "User-Agent": "Mozilla/5.0",
