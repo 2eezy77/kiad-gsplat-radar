@@ -37,5 +37,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    print("Server running at http://localhost:8080")
-    http.server.HTTPServer(("", 8080), Handler).serve_forever()
+    port = int(os.environ.get("PORT", 8080))
+    print(f"Server running at http://localhost:{port}")
+    http.server.HTTPServer(("", port), Handler).serve_forever()
