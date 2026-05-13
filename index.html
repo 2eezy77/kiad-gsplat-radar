@@ -2,120 +2,164 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>KIAD Flight Radar — Immersive</title>
+  <title>KIAD Flight Radar</title>
   <script src="https://cesium.com/downloads/cesiumjs/releases/1.141/Build/Cesium/Cesium.js"></script>
   <link href="https://cesium.com/downloads/cesiumjs/releases/1.141/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body, #cesiumContainer { width: 100%; height: 100%; overflow: hidden; background: #000; }
-
-    /* ── typography ── */
     :root {
-      --mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-      --glass: rgba(8, 10, 14, 0.84);
+      --mono: 'Fira Code', 'Courier New', monospace;
+      --glass: rgba(8,10,14,0.88);
       --border: rgba(255,255,255,0.09);
       --accent: #f5c842;
-      --dim: #666;
+      --dim: #555;
     }
 
-    /* ── airport badge ── */
+    /* ─── Airport badge ─── */
     #badge {
-      position: fixed; top: 14px; left: 14px; z-index: 900;
+      position: fixed; top: 14px; left: 14px; z-index: 200;
       background: var(--glass); border: 1px solid var(--border);
-      border-radius: 10px; padding: 12px 18px;
-      font: 12px var(--mono); color: #ccc; line-height: 1.8;
+      border-radius: 10px; padding: 11px 16px;
+      font: 11px var(--mono); color: #bbb; line-height: 1.9;
+      pointer-events: none;
     }
-    #badge .icao { font-size: 22px; font-weight: 700; color: var(--accent); letter-spacing: 2px; }
-    #badge .meta { font-size: 10px; color: var(--dim); }
+    #badge .icao { font-size: 20px; font-weight: 700; color: var(--accent); letter-spacing: 2px; }
+    #badge .dim  { font-size: 10px; color: var(--dim); }
 
-    /* ── mode selector ── */
+    /* ─── Mode buttons ─── */
     #modes {
       position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
-      display: flex; gap: 6px; z-index: 900;
+      display: flex; gap: 5px; z-index: 200;
     }
     .mode-btn {
-      padding: 9px 18px; border-radius: 8px;
+      padding: 8px 16px; border-radius: 8px;
       background: var(--glass); border: 1px solid var(--border);
-      color: #aaa; font: 11px var(--mono); letter-spacing: 1px;
+      color: #888; font: 10px var(--mono); letter-spacing: 1.2px;
       cursor: pointer; text-transform: uppercase; transition: all 0.15s;
     }
-    .mode-btn:hover { border-color: rgba(255,255,255,0.24); color: #e8e8e8; }
-    .mode-btn.active { background: rgba(245,200,66,0.14); border-color: var(--accent); color: var(--accent); }
+    .mode-btn:hover { color: #ccc; border-color: rgba(255,255,255,0.2); }
+    .mode-btn.active { background: rgba(245,200,66,0.12); border-color: var(--accent); color: var(--accent); }
 
-    /* ── aircraft info card ── */
-    #ac-card {
-      position: fixed; top: 14px; right: 14px; z-index: 900;
+    /* ─── Traffic list ─── */
+    #traffic-panel {
+      position: fixed; bottom: 14px; left: 14px; z-index: 200;
       background: var(--glass); border: 1px solid var(--border);
-      border-radius: 10px; padding: 14px 18px;
-      font: 12px var(--mono); color: #ccc; line-height: 2;
-      min-width: 200px; display: none;
+      border-radius: 10px; padding: 8px 0;
+      font: 11px var(--mono); color: #bbb;
+      max-height: 260px; overflow-y: auto;
+      width: 270px;
     }
-    #ac-card .cs { font-size: 17px; font-weight: 700; color: #fff; }
-    #ac-card .row { display: flex; justify-content: space-between; gap: 24px; }
-    #ac-card .lbl { color: var(--dim); font-size: 10px; }
-    #ac-card .val { color: #e8e8e8; }
-    #ac-card .close-btn {
-      position: absolute; top: 8px; right: 12px;
+    #traffic-panel::-webkit-scrollbar { width: 3px; }
+    #traffic-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+    #traffic-hdr {
+      padding: 3px 12px 7px; font-size: 10px; color: var(--dim);
+      letter-spacing: 2px; text-transform: uppercase;
+      border-bottom: 1px solid var(--border); margin-bottom: 2px;
+    }
+    #traffic-list { list-style: none; }
+    .tr-row {
+      display: flex; align-items: center; gap: 7px;
+      padding: 4px 12px; cursor: pointer; transition: background 0.1s;
+    }
+    .tr-row:hover { background: rgba(255,255,255,0.05); }
+    .tr-row.sel { background: rgba(245,200,66,0.09); }
+    .tr-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .tr-cs { font-weight: 600; min-width: 78px; }
+    .tr-ty { color: var(--dim); min-width: 36px; font-size: 10px; }
+    .tr-fl { color: #777; min-width: 38px; text-align: right; font-size: 10px; }
+    .tr-spd { color: #666; min-width: 38px; text-align: right; font-size: 10px; }
+
+    /* ─── Detail panel (slides in from right) ─── */
+    #detail-panel {
+      position: fixed; top: 0; right: 0; z-index: 300;
+      width: 380px; height: 100%;
+      background: rgba(6,8,12,0.96); border-left: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      transform: translateX(100%); transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+      font: 11px var(--mono);
+    }
+    #detail-panel.open { transform: translateX(0); }
+
+    /* header */
+    #dp-header {
+      padding: 18px 18px 12px;
+      border-bottom: 1px solid var(--border);
+      position: relative; flex-shrink: 0;
+    }
+    #dp-callsign { font-size: 22px; font-weight: 700; color: #fff; letter-spacing: 1px; }
+    #dp-airline  { font-size: 10px; color: var(--dim); margin-top: 2px; }
+    #dp-close {
+      position: absolute; top: 14px; right: 14px;
       background: none; border: none; color: var(--dim);
-      font-size: 16px; cursor: pointer; line-height: 1;
+      font-size: 18px; cursor: pointer; line-height: 1;
     }
-    #ac-card .close-btn:hover { color: #ccc; }
+    #dp-close:hover { color: #ccc; }
 
-    /* ── aircraft list panel ── */
-    #ac-list-panel {
-      position: fixed; bottom: 14px; left: 14px; z-index: 900;
-      background: var(--glass); border: 1px solid var(--border);
-      border-radius: 10px; padding: 10px 0;
-      font: 11px var(--mono); color: #ccc;
-      max-height: 280px; overflow-y: auto;
-      min-width: 260px; max-width: 320px;
+    /* flight data grid */
+    #dp-data {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 0; padding: 10px 0; border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
     }
-    #ac-list-panel::-webkit-scrollbar { width: 4px; }
-    #ac-list-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
-    #ac-list-header {
-      padding: 4px 14px 8px; font-size: 10px;
-      color: var(--dim); letter-spacing: 2px; text-transform: uppercase;
-      border-bottom: 1px solid var(--border); margin-bottom: 4px;
-    }
-    .ac-row {
-      display: flex; align-items: center; gap: 8px;
-      padding: 5px 14px; cursor: pointer; transition: background 0.1s;
-    }
-    .ac-row:hover { background: rgba(255,255,255,0.05); }
-    .ac-row.selected { background: rgba(245,200,66,0.10); }
-    .ac-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .ac-cs { font-weight: 600; min-width: 80px; }
-    .ac-type { color: var(--dim); min-width: 40px; }
-    .ac-fl { color: #888; min-width: 40px; text-align: right; }
-    .ac-spd { color: #888; min-width: 40px; text-align: right; }
+    .dp-cell { padding: 7px 18px; }
+    .dp-lbl  { font-size: 9px; color: var(--dim); letter-spacing: 1.5px; text-transform: uppercase; }
+    .dp-val  { font-size: 14px; color: #e8e8e8; margin-top: 1px; }
+    .dp-val.accent { color: var(--accent); }
 
-    /* ── splat status ── */
-    #splat-badge {
-      position: fixed; bottom: 14px; right: 14px; z-index: 900;
-      background: var(--glass); border: 1px solid var(--border);
-      border-radius: 8px; padding: 9px 16px;
-      font: 11px var(--mono); color: var(--dim);
-      display: flex; align-items: center; gap: 8px;
+    /* tab switcher */
+    #dp-tabs {
+      display: flex; flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
     }
-    #splat-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: #444; }
-    #splat-badge.loaded .dot { background: #4caf50; }
-    #splat-badge.loaded { color: #aaa; }
+    .dp-tab {
+      flex: 1; padding: 11px; text-align: center;
+      font: 10px var(--mono); letter-spacing: 1.2px; text-transform: uppercase;
+      color: var(--dim); cursor: pointer; transition: all 0.15s;
+      border-bottom: 2px solid transparent;
+    }
+    .dp-tab:hover { color: #aaa; }
+    .dp-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-    /* ── toast ── */
+    /* viewer area */
+    #dp-viewer {
+      flex: 1; position: relative; background: #0a0b0e; overflow: hidden;
+    }
+    #dp-viewer iframe {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      border: none;
+    }
+    #dp-placeholder {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: var(--dim); font-size: 12px; line-height: 2;
+      text-align: center;
+    }
+    #dp-placeholder .icon { font-size: 36px; margin-bottom: 10px; opacity: 0.3; }
+
+    /* loading overlay */
+    #dp-loading {
+      position: absolute; inset: 0;
+      background: rgba(6,8,12,0.85);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--dim); font-size: 11px; letter-spacing: 1px;
+    }
+    #dp-loading.hidden { display: none; }
+
+    /* ─── toast ─── */
     #toast {
-      position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
       background: rgba(0,0,0,0.88); color: #e8e8e8;
-      padding: 8px 20px; border-radius: 20px;
-      font: 12px var(--mono); z-index: 1000;
+      padding: 7px 18px; border-radius: 20px;
+      font: 11px var(--mono); z-index: 1000;
       opacity: 0; transition: opacity 0.4s; pointer-events: none;
+      white-space: nowrap;
     }
     #toast.show { opacity: 1; }
 
-    /* ── cesium chrome removal ── */
+    /* ─── Cesium chrome removal ─── */
     .cesium-widget-credits, .cesium-credit-container { display: none !important; }
-
-    /* ── scrollbar for ac-list ── */
-    #ac-list { list-style: none; }
   </style>
 </head>
 <body>
@@ -125,392 +169,461 @@
 <div id="badge">
   <div class="icao">KIAD</div>
   Washington Dulles International<br/>
-  <span class="meta">38.9531° N  77.4565° W  313 ft</span><br/>
-  <span class="meta" id="ac-count">— aircraft</span>
+  <span class="dim">38.9531°N  77.4565°W  313 ft MSL</span><br/>
+  <span class="dim" id="ac-count">— aircraft</span>
 </div>
 
 <!-- Mode Selector -->
 <div id="modes">
-  <button class="mode-btn active" onclick="setMode('FREE')" id="btn-FREE">Free</button>
-  <button class="mode-btn" onclick="setMode('TOWER')" id="btn-TOWER">Tower</button>
-  <button class="mode-btn" onclick="setMode('FOLLOW')" id="btn-FOLLOW">Follow</button>
+  <button class="mode-btn active" onclick="setMode('FREE')"   id="btn-FREE">Free</button>
+  <button class="mode-btn"        onclick="setMode('TOWER')"  id="btn-TOWER">Tower</button>
+  <button class="mode-btn"        onclick="setMode('FOLLOW')" id="btn-FOLLOW">Follow</button>
 </div>
 
-<!-- Aircraft Info Card -->
-<div id="ac-card">
-  <button class="close-btn" onclick="deselectAircraft()">✕</button>
-  <div class="cs" id="card-cs">—</div>
-  <div class="row"><span class="lbl">TYPE</span><span class="val" id="card-type">—</span></div>
-  <div class="row"><span class="lbl">FL</span><span class="val" id="card-fl">—</span></div>
-  <div class="row"><span class="lbl">SPD</span><span class="val" id="card-spd">—</span></div>
-  <div class="row"><span class="lbl">HDG</span><span class="val" id="card-hdg">—</span></div>
-  <div class="row"><span class="lbl">V/S</span><span class="val" id="card-vs">—</span></div>
-  <div class="row"><span class="lbl">FROM</span><span class="val" id="card-from">—</span></div>
-  <div class="row"><span class="lbl">TO</span><span class="val" id="card-to">—</span></div>
+<!-- Traffic List -->
+<div id="traffic-panel">
+  <div id="traffic-hdr">Live Traffic — <span id="traffic-count">0</span></div>
+  <ul id="traffic-list"></ul>
 </div>
 
-<!-- Aircraft List -->
-<div id="ac-list-panel">
-  <div id="ac-list-header">Traffic — <span id="traffic-count">0</span></div>
-  <ul id="ac-list"></ul>
-</div>
+<!-- Detail Panel -->
+<div id="detail-panel">
+  <div id="dp-header">
+    <button id="dp-close" onclick="deselectAircraft()">✕</button>
+    <div id="dp-callsign">—</div>
+    <div id="dp-airline">—</div>
+  </div>
 
-<!-- Splat Layer Status -->
-<div id="splat-badge" id="splat-badge">
-  <div class="dot"></div>
-  <span id="splat-label">3DGS layer: standby</span>
+  <div id="dp-data">
+    <div class="dp-cell"><div class="dp-lbl">Type</div><div class="dp-val" id="dp-type">—</div></div>
+    <div class="dp-cell"><div class="dp-lbl">Flight Level</div><div class="dp-val accent" id="dp-fl">—</div></div>
+    <div class="dp-cell"><div class="dp-lbl">Speed</div><div class="dp-val" id="dp-spd">—</div></div>
+    <div class="dp-cell"><div class="dp-lbl">Heading</div><div class="dp-val" id="dp-hdg">—</div></div>
+    <div class="dp-cell"><div class="dp-lbl">Vert Speed</div><div class="dp-val" id="dp-vs">—</div></div>
+    <div class="dp-cell"><div class="dp-lbl">Squawk</div><div class="dp-val" id="dp-sq">—</div></div>
+    <div class="dp-cell"><div class="dp-lbl">From</div><div class="dp-val" id="dp-from">—</div></div>
+    <div class="dp-cell"><div class="dp-lbl">To</div><div class="dp-val" id="dp-to">—</div></div>
+  </div>
+
+  <div id="dp-tabs">
+    <div class="dp-tab active" onclick="setTab('exterior')" id="tab-exterior">✈ Aircraft</div>
+    <div class="dp-tab"        onclick="setTab('cockpit')"  id="tab-cockpit">🎛 Cockpit</div>
+  </div>
+
+  <div id="dp-viewer">
+    <div id="dp-placeholder">
+      <div class="icon">✈</div>
+      Select an aircraft<br/>to view the 3D model
+    </div>
+    <div id="dp-loading" class="hidden">Loading model…</div>
+    <iframe id="dp-iframe" src="" allow="autoplay; fullscreen; vr" allowfullscreen style="display:none"></iframe>
+  </div>
 </div>
 
 <!-- Toast -->
-<div id="toast" id="toast"></div>
+<div id="toast"></div>
 
 <script>
-  // ═══════════════════════════════════════════
-  //  CONFIG
-  // ═══════════════════════════════════════════
-  const CESIUM_TOKEN = "__CESIUM_TOKEN__";
-  const GOOGLE_KEY   = "__GOOGLE_KEY__";
+// ═══════════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════════
+const CESIUM_TOKEN = "__CESIUM_TOKEN__";
+const GOOGLE_KEY   = "__GOOGLE_KEY__";
 
-  // ── Gaussian Splat Asset ────────────────────
-  // Set this to your Cesium ion asset ID when you upload a KIAD Gaussian splat.
-  // Upload workflow: Cesium ion dashboard → Add data → Photos/PLY → type "3D Gaussian Splats"
-  // Once processed, paste the numeric asset ID here and reload.
-  const GSPLAT_ASSET_ID = null; // e.g. 123456
+// Gaussian Splat layer — set to Cesium ion asset ID when you upload KIAD footage
+// Workflow: cesium.com/ion → Add Data → Photos or PLY → 3D Gaussian Splats
+const GSPLAT_ASSET_ID = null;
 
-  // ── KIAD reference ─────────────────────────
-  const KIAD_LON = -77.4565, KIAD_LAT = 38.9531, KIAD_ALT_M = 95.4;
+// ═══════════════════════════════════════════════════════
+//  3D MODEL LOOKUP — Sketchfab embed IDs
+//  [exterior_model_id, cockpit_model_id]
+//
+//  Sketchfab embed URL: https://sketchfab.com/models/{id}/embed?autostart=1&ui_theme=dark
+//  All models below are free/embeddable.
+// ═══════════════════════════════════════════════════════
+const SKETCHFAB = (() => {
+  // Shared cockpit IDs
+  const CK_737 = '1e2e2ddbebf84633b4cb6098333346dc';  // B737 Max cockpit (AirStudios)
+  const CK_A32 = 'feaa475ce5824121be0380a42987007f';  // A320 cockpit (AirStudios)
+  const EX_737 = '600a75a0b6b04517b31de66b27f0b110';  // B737-800 exterior
+  const EX_A32 = '7b8910d3cf824e6399c4ca75a31130ed';  // A320-200 exterior
+  const EX_777 = '322e7961d2024bba834887878d2d49a2';  // B777-300ER exterior
+  const EX_787 = '3ba8a5275d0e41968b34d367c34e8f0f';  // B787 Dreamliner exterior
 
-  // Tower camera position (approx KIAD TWR cab)
-  const TOWER_DEST = Cesium.Cartesian3.fromDegrees(-77.4563, 38.9507, 175);
-  const TOWER_ORI  = { heading: Cesium.Math.toRadians(130), pitch: Cesium.Math.toRadians(-6), roll: 0 };
+  const map = {
+    // ── Boeing 737 family ──
+    B736:[EX_737,CK_737], B737:[EX_737,CK_737], B738:[EX_737,CK_737], B739:[EX_737,CK_737],
+    B7M7:[EX_737,CK_737], B7M8:[EX_737,CK_737], B7M9:[EX_737,CK_737],
+    // ── Airbus A320 family ──
+    A318:[EX_A32,CK_A32], A319:[EX_A32,CK_A32], A320:[EX_A32,CK_A32],
+    A321:[EX_A32,CK_A32], A20N:[EX_A32,CK_A32], A21N:[EX_A32,CK_A32],
+    // ── Boeing 777 ──
+    B772:[EX_777,CK_737], B773:[EX_777,CK_737], B77W:[EX_777,CK_737], B779:[EX_777,CK_737],
+    // ── Boeing 787 ──
+    B788:[EX_787,CK_737], B789:[EX_787,CK_737], B78X:[EX_787,CK_737],
+    // ── Airbus widebody — use A320 exterior as fallback ──
+    A330:[EX_A32,CK_A32], A332:[EX_A32,CK_A32], A333:[EX_A32,CK_A32],
+    A339:[EX_A32,CK_A32], A350:[EX_A32,CK_A32], A359:[EX_A32,CK_A32],
+    // ── Regional jets (map to B737 look-alike) ──
+    CRJ2:[EX_737,CK_737], CRJ7:[EX_737,CK_737], CRJ9:[EX_737,CK_737], CRJX:[EX_737,CK_737],
+    E170:[EX_737,CK_737], E175:[EX_737,CK_737], E190:[EX_737,CK_737], E195:[EX_737,CK_737],
+    E75L:[EX_737,CK_737], E75S:[EX_737,CK_737],
+  };
 
-  // Free home view
-  const HOME_DEST  = Cesium.Cartesian3.fromDegrees(KIAD_LON, KIAD_LAT, 9000);
-  const HOME_ORI   = { heading: Cesium.Math.toRadians(345), pitch: Cesium.Math.toRadians(-42), roll: 0 };
+  const DEFAULT = [EX_737, CK_737];
+  return { map, DEFAULT };
+})();
 
-  // ═══════════════════════════════════════════
-  //  AIRCRAFT CLASSIFICATION
-  // ═══════════════════════════════════════════
-  const HELO_TYPES = new Set([
-    'R22','R44','R66','B06','B47','B407','B412','B427','B429','B430','B462',
-    'EC20','EC25','EC30','EC35','EC45','EC55','AS32','AS50','AS55','AS65',
-    'H125','H130','H145','H155','H160','H175','S61','S70','S76','S92',
-    'A109','A119','A139','A169','A189','MD52','MD6X','MH6','OH58',
-    'AW09','AW19','AW39',
-  ]);
-  function isHelo(t)  { return t ? HELO_TYPES.has(t.toUpperCase()) : false; }
-  function isVFR(sq)  { return sq === '1200' || sq === 1200; }
-  function acColor(type, sq) {
-    if (isHelo(type)) return isVFR(sq) ? '#ffaa00' : '#ff44ff';
-    return isVFR(sq) ? '#00ccff' : '#00ff88';
-  }
+function sfEmbed(id) {
+  return `https://sketchfab.com/models/${id}/embed?autostart=1&ui_theme=dark&camera=0&preload=1`;
+}
 
-  // ═══════════════════════════════════════════
-  //  VIEWER INIT
-  // ═══════════════════════════════════════════
-  Cesium.Ion.defaultAccessToken = CESIUM_TOKEN;
+// ═══════════════════════════════════════════════════════
+//  AIRCRAFT CLASSIFICATION
+// ═══════════════════════════════════════════════════════
+const HELO_TYPES = new Set([
+  'R22','R44','R66','B06','B47','B407','B412','B427','B429','B430','B462',
+  'EC20','EC25','EC30','EC35','EC45','EC55','AS32','AS50','AS55','AS65',
+  'H125','H130','H145','H155','H160','H175','S61','S70','S76','S92',
+  'A109','A119','A139','A169','A189','MD52','MD6X','MH6','OH58',
+  'AW09','AW19','AW39',
+]);
+function isHelo(t) { return t ? HELO_TYPES.has(t.toUpperCase()) : false; }
+function isVFR(sq) { return sq === '1200' || sq === 1200; }
+function acColor(type, sq) {
+  if (isHelo(type)) return isVFR(sq) ? '#ffaa00' : '#ff44ff';
+  return isVFR(sq) ? '#00ccff' : '#00ff88';
+}
 
-  const viewer = new Cesium.Viewer('cesiumContainer', {
-    animation: false,
-    baseLayerPicker: false,
-    fullscreenButton: false,
-    geocoder: false,
-    homeButton: false,
-    infoBox: false,
-    navigationHelpButton: false,
-    sceneModePicker: false,
-    timeline: false,
-    selectionIndicator: false,
-    shadows: false,
-    terrainProvider: new Cesium.EllipsoidTerrainProvider(),
-    skyBox: false,
-    skyAtmosphere: new Cesium.SkyAtmosphere(),
-  });
-  viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#080a0e');
-  viewer.scene.globe.show = false;
+// ═══════════════════════════════════════════════════════
+//  VIEWER
+// ═══════════════════════════════════════════════════════
+Cesium.Ion.defaultAccessToken = CESIUM_TOKEN;
 
-  // ── Google Photorealistic 3D Tiles ─────────
-  let googleTileset;
-  (async () => {
-    try {
-      googleTileset = await Cesium.Cesium3DTileset.fromUrl(
-        `https://tile.googleapis.com/v1/3dtiles/root.json?key=${GOOGLE_KEY}`
-      );
-      googleTileset.maximumScreenSpaceError = 8;
-      viewer.scene.primitives.add(googleTileset);
-      viewer.camera.flyTo({ destination: HOME_DEST, orientation: HOME_ORI, duration: 0 });
-    } catch(e) { console.error('Google 3D Tiles:', e); }
-  })();
+const viewer = new Cesium.Viewer('cesiumContainer', {
+  animation: false, baseLayerPicker: false, fullscreenButton: false,
+  geocoder: false, homeButton: false, infoBox: false,
+  navigationHelpButton: false, sceneModePicker: false,
+  timeline: false, selectionIndicator: false, shadows: false,
+  terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+  skyBox: false,
+  skyAtmosphere: new Cesium.SkyAtmosphere(),
+});
+viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#080a0e');
+viewer.scene.globe.show = false;
 
-  // ── Gaussian Splat Layer ────────────────────
-  (async () => {
-    if (!GSPLAT_ASSET_ID) return;
-    try {
-      const splat = await Cesium.Cesium3DTileset.fromIonAssetId(GSPLAT_ASSET_ID);
-      viewer.scene.primitives.add(splat);
-      const badge = document.getElementById('splat-badge');
-      badge.classList.add('loaded');
-      document.getElementById('splat-label').textContent = `3DGS: Asset ${GSPLAT_ASSET_ID}`;
-      toast(`Gaussian Splat loaded (asset ${GSPLAT_ASSET_ID})`);
-    } catch(e) { console.error('Gaussian Splat:', e); }
-  })();
-
-  // ═══════════════════════════════════════════
-  //  AIRCRAFT TRACKING
-  // ═══════════════════════════════════════════
-  const aircraftMap = {};  // key → { dot, trail, posProp, history, callsign, ... }
-  let selectedKey   = null;
-  let currentMode   = 'FREE';
-
-  function getDispCallsign(raw) {
-    if (!raw) return '????';
-    return raw.trim().replace(/\s+/g, '').toUpperCase();
-  }
-
-  async function fetchAircraft() {
-    try {
-      const res  = await fetch('/api/aircraft');
-      const data = await res.json();
-      const now  = Cesium.JulianDate.now();
-      const seen = new Set();
-
-      for (const [key, ac] of Object.entries(data)) {
-        if (!Array.isArray(ac)) continue;
-        const [icao, lat, lon, heading, alt_ft, speed, squawk,
-               , ac_type, reg, , origin, dest, flight, , vspeed, callsign] = ac;
-        if (!lat || !lon) continue;
-
-        const dispCall = getDispCallsign(callsign || icao);
-        const altM     = (alt_ft || 0) * 0.3048;
-        const color    = acColor(ac_type, squawk);
-        const cesColor = Cesium.Color.fromCssColorString(color);
-        seen.add(key);
-
-        if (!aircraftMap[key]) {
-          // New aircraft
-          const posProp = new Cesium.SampledPositionProperty();
-          posProp.backwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
-          posProp.forwardExtrapolationType  = Cesium.ExtrapolationType.HOLD;
-          posProp.addSample(now, Cesium.Cartesian3.fromDegrees(lon, lat, altM));
-
-          const dot = viewer.entities.add({
-            position: posProp,
-            point: {
-              pixelSize: isHelo(ac_type) ? 8 : 10,
-              color: cesColor,
-              outlineColor: Cesium.Color.BLACK.withAlpha(0.5),
-              outlineWidth: 1,
-              heightReference: Cesium.HeightReference.NONE,
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
-            label: {
-              text: dispCall,
-              font: '11px monospace',
-              fillColor: cesColor,
-              outlineColor: Cesium.Color.BLACK,
-              outlineWidth: 2,
-              style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-              verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-              pixelOffset: new Cesium.Cartesian2(8, -6),
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-              distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 120000),
-            },
-            viewFrom: new Cesium.ConstantProperty(new Cesium.Cartesian3(-600, 0, 180)),
-          });
-
-          const trail = viewer.entities.add({
-            polyline: {
-              positions: [Cesium.Cartesian3.fromDegrees(lon, lat, altM)],
-              width: 1.5,
-              material: new Cesium.ColorMaterialProperty(cesColor.withAlpha(0.35)),
-              arcType: Cesium.ArcType.NONE,
-              depthFailMaterial: new Cesium.ColorMaterialProperty(cesColor.withAlpha(0.12)),
-            },
-          });
-
-          aircraftMap[key] = {
-            dot, trail, posProp,
-            history: [{ lon, lat, altM }],
-            callsign: dispCall, ac_type: ac_type || '—',
-            squawk: squawk || null, color,
-            alt: Math.round(alt_ft || 0), speed: speed || 0,
-            heading: heading || 0, vspeed: vspeed || 0,
-            origin: origin || '—', dest: dest || '—',
-            lon, lat, altM,
-          };
-        } else {
-          // Update
-          const entry = aircraftMap[key];
-          const pos   = Cesium.Cartesian3.fromDegrees(lon, lat, altM);
-          entry.posProp.addSample(now, pos);
-          entry.history.unshift({ lon, lat, altM });
-          if (entry.history.length > 14) entry.history.length = 14;
-          if (entry.history.length >= 2) {
-            entry.trail.polyline.positions =
-              entry.history.map(p => Cesium.Cartesian3.fromDegrees(p.lon, p.lat, p.altM));
-          }
-          Object.assign(entry, {
-            callsign: dispCall, ac_type: ac_type || '—',
-            squawk: squawk || null,
-            alt: Math.round(alt_ft || 0), speed: speed || 0,
-            heading: heading || 0, vspeed: vspeed || 0,
-            origin: origin || '—', dest: dest || '—',
-            lon, lat, altM,
-          });
-        }
-      }
-
-      // Remove stale
-      for (const k of Object.keys(aircraftMap)) {
-        if (!seen.has(k)) {
-          viewer.entities.remove(aircraftMap[k].dot);
-          viewer.entities.remove(aircraftMap[k].trail);
-          delete aircraftMap[k];
-        }
-      }
-
-      updateUI();
-    } catch(e) { console.warn('fetchAircraft:', e); }
-  }
-
-  // ═══════════════════════════════════════════
-  //  UI
-  // ═══════════════════════════════════════════
-  function updateUI() {
-    const entries = Object.entries(aircraftMap);
-    const count   = entries.length;
-    document.getElementById('ac-count').textContent = `${count} aircraft`;
-    document.getElementById('traffic-count').textContent = count;
-
-    const list = document.getElementById('ac-list');
-    list.innerHTML = '';
-
-    // Sort: selected first, then by callsign
-    entries.sort(([ka, a], [kb, b]) => {
-      if (ka === selectedKey) return -1;
-      if (kb === selectedKey) return  1;
-      return a.callsign.localeCompare(b.callsign);
+// Google Photorealistic 3D Tiles
+(async () => {
+  try {
+    const t = await Cesium.Cesium3DTileset.fromUrl(
+      `https://tile.googleapis.com/v1/3dtiles/root.json?key=${GOOGLE_KEY}`
+    );
+    t.maximumScreenSpaceError = 8;
+    viewer.scene.primitives.add(t);
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(-77.4565, 38.9531, 9000),
+      orientation: { heading: Cesium.Math.toRadians(345), pitch: Cesium.Math.toRadians(-42), roll: 0 },
+      duration: 0,
     });
+  } catch(e) { console.error('3D Tiles:', e); }
+})();
 
-    for (const [k, a] of entries) {
-      const li  = document.createElement('li');
-      li.className = 'ac-row' + (k === selectedKey ? ' selected' : '');
-      const fl  = String(Math.round(a.alt / 100)).padStart(3, '0');
-      const spd = String(Math.round(a.speed)).padStart(3, ' ');
-      li.innerHTML = `
-        <span class="ac-dot" style="background:${a.color}"></span>
-        <span class="ac-cs">${a.callsign}</span>
-        <span class="ac-type">${a.ac_type}</span>
-        <span class="ac-fl">FL${fl}</span>
-        <span class="ac-spd">${spd}kt</span>
-      `;
-      li.addEventListener('click', () => selectAircraft(k));
-      list.appendChild(li);
-    }
+// Optional Gaussian Splat layer (Cesium ion)
+(async () => {
+  if (!GSPLAT_ASSET_ID) return;
+  try {
+    const splat = await Cesium.Cesium3DTileset.fromIonAssetId(GSPLAT_ASSET_ID);
+    viewer.scene.primitives.add(splat);
+    toast(`✦ Gaussian Splat loaded — asset ${GSPLAT_ASSET_ID}`);
+  } catch(e) { console.error('GS layer:', e); }
+})();
 
-    // Update card if something selected
-    if (selectedKey && aircraftMap[selectedKey]) {
-      const a = aircraftMap[selectedKey];
-      const fl = String(Math.round(a.alt / 100)).padStart(3, '0');
-      document.getElementById('card-fl').textContent  = `FL${fl} (${a.alt} ft)`;
-      document.getElementById('card-spd').textContent = `${Math.round(a.speed)} kt`;
-      document.getElementById('card-hdg').textContent = `${Math.round(a.heading)}°`;
-      const vs = a.vspeed > 50 ? `+${a.vspeed}` : a.vspeed < -50 ? `${a.vspeed}` : '—';
-      document.getElementById('card-vs').textContent  = vs ? `${vs} fpm` : '—';
-    }
-  }
+// ═══════════════════════════════════════════════════════
+//  AIRCRAFT TRACKING
+// ═══════════════════════════════════════════════════════
+const aircraftMap = {};
+let selectedKey = null, currentMode = 'FREE', currentTab = 'exterior';
 
-  function selectAircraft(key) {
-    selectedKey = key;
-    const a = aircraftMap[key];
-    if (!a) return;
+async function fetchAircraft() {
+  try {
+    const res  = await fetch('/api/aircraft');
+    const data = await res.json();
+    const now  = Cesium.JulianDate.now();
+    const seen = new Set();
 
-    document.getElementById('ac-card').style.display = 'block';
-    document.getElementById('card-cs').textContent   = a.callsign;
-    document.getElementById('card-type').textContent = a.ac_type || '—';
-    document.getElementById('card-from').textContent = a.origin;
-    document.getElementById('card-to').textContent   = a.dest;
+    for (const [key, ac] of Object.entries(data)) {
+      if (!Array.isArray(ac)) continue;
+      const [icao, lat, lon, heading, alt_ft, speed, squawk,
+             , ac_type, , , origin, dest, , , vspeed, callsign] = ac;
+      if (!lat || !lon) continue;
 
-    if (currentMode === 'FOLLOW') {
-      viewer.trackedEntity = a.dot;
-    } else {
-      viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(a.lon, a.lat, a.altM + 3000),
-        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
-        duration: 1.5,
-      });
-    }
-    updateUI();
-  }
+      const cs    = (callsign || icao || '????').trim().toUpperCase();
+      const altM  = (alt_ft || 0) * 0.3048;
+      const color = acColor(ac_type, squawk);
+      const cc    = Cesium.Color.fromCssColorString(color);
+      seen.add(key);
 
-  function deselectAircraft() {
-    selectedKey = null;
-    if (currentMode === 'FOLLOW') {
-      viewer.trackedEntity = undefined;
-    }
-    document.getElementById('ac-card').style.display = 'none';
-    updateUI();
-  }
+      if (!aircraftMap[key]) {
+        const pp = new Cesium.SampledPositionProperty();
+        pp.backwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
+        pp.forwardExtrapolationType  = Cesium.ExtrapolationType.HOLD;
+        pp.addSample(now, Cesium.Cartesian3.fromDegrees(lon, lat, altM));
 
-  // ═══════════════════════════════════════════
-  //  CAMERA MODES
-  // ═══════════════════════════════════════════
-  function setMode(mode) {
-    currentMode = mode;
-    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('btn-' + mode).classList.add('active');
+        const dot = viewer.entities.add({
+          position: pp,
+          point: {
+            pixelSize: isHelo(ac_type) ? 8 : 10,
+            color: cc,
+            outlineColor: Cesium.Color.BLACK.withAlpha(0.5),
+            outlineWidth: 1,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          },
+          label: {
+            text: cs,
+            font: '11px monospace',
+            fillColor: cc,
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            pixelOffset: new Cesium.Cartesian2(8, -6),
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 130000),
+          },
+          viewFrom: new Cesium.ConstantProperty(new Cesium.Cartesian3(-600, 0, 180)),
+        });
 
-    viewer.trackedEntity = undefined;
+        const trail = viewer.entities.add({
+          polyline: {
+            positions: [Cesium.Cartesian3.fromDegrees(lon, lat, altM)],
+            width: 1.5,
+            material: new Cesium.ColorMaterialProperty(cc.withAlpha(0.35)),
+            arcType: Cesium.ArcType.NONE,
+            depthFailMaterial: new Cesium.ColorMaterialProperty(cc.withAlpha(0.12)),
+          },
+        });
 
-    if (mode === 'FREE') {
-      viewer.camera.flyTo({ destination: HOME_DEST, orientation: HOME_ORI, duration: 1.5 });
-      toast('Free camera — drag to explore');
-
-    } else if (mode === 'TOWER') {
-      viewer.camera.flyTo({ destination: TOWER_DEST, orientation: TOWER_ORI, duration: 2.5 });
-      toast('Tower view — KIAD Control Tower');
-
-    } else if (mode === 'FOLLOW') {
-      if (selectedKey && aircraftMap[selectedKey]) {
-        viewer.trackedEntity = aircraftMap[selectedKey].dot;
-        toast(`Following ${aircraftMap[selectedKey].callsign}`);
+        aircraftMap[key] = {
+          dot, trail, pp,
+          history: [{ lon, lat, altM }],
+          cs, ac_type: ac_type || '—', color,
+          squawk: squawk || null,
+          alt: Math.round(alt_ft || 0), speed: speed || 0,
+          heading: heading || 0, vspeed: vspeed || 0,
+          origin: origin || '—', dest: dest || '—',
+          lon, lat, altM,
+        };
       } else {
-        toast('Click an aircraft to follow it');
+        const e = aircraftMap[key];
+        e.pp.addSample(now, Cesium.Cartesian3.fromDegrees(lon, lat, altM));
+        e.history.unshift({ lon, lat, altM });
+        if (e.history.length > 14) e.history.length = 14;
+        if (e.history.length >= 2)
+          e.trail.polyline.positions = e.history.map(p => Cesium.Cartesian3.fromDegrees(p.lon, p.lat, p.altM));
+        Object.assign(e, {
+          cs, ac_type: ac_type || '—',
+          alt: Math.round(alt_ft || 0), speed: speed || 0,
+          heading: heading || 0, vspeed: vspeed || 0,
+          origin: origin || '—', dest: dest || '—',
+          lon, lat, altM,
+        });
       }
     }
-  }
 
-  // ── click to select on globe ────────────────
-  const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-  handler.setInputAction(click => {
-    const picked = viewer.scene.pick(click.position);
-    if (Cesium.defined(picked) && Cesium.defined(picked.id)) {
-      const eid = picked.id;
-      for (const [k, a] of Object.entries(aircraftMap)) {
-        if (a.dot === eid) { selectAircraft(k); return; }
+    for (const k of Object.keys(aircraftMap)) {
+      if (!seen.has(k)) {
+        viewer.entities.remove(aircraftMap[k].dot);
+        viewer.entities.remove(aircraftMap[k].trail);
+        if (k === selectedKey) deselectAircraft();
+        delete aircraftMap[k];
       }
     }
-    // click on empty = deselect in FREE mode
-    if (currentMode === 'FREE') deselectAircraft();
-  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
-  // ═══════════════════════════════════════════
-  //  TOAST
-  // ═══════════════════════════════════════════
-  let toastTimer;
-  function toast(msg) {
-    const el = document.getElementById('toast');
-    el.textContent = msg;
-    el.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+    refreshList();
+    if (selectedKey && aircraftMap[selectedKey]) refreshCard();
+  } catch(e) { console.warn('fetch:', e); }
+}
+
+// ═══════════════════════════════════════════════════════
+//  UI — TRAFFIC LIST
+// ═══════════════════════════════════════════════════════
+function refreshList() {
+  const entries = Object.entries(aircraftMap);
+  document.getElementById('ac-count').textContent     = `${entries.length} aircraft`;
+  document.getElementById('traffic-count').textContent = entries.length;
+
+  entries.sort(([ka], [kb]) => {
+    if (ka === selectedKey) return -1;
+    if (kb === selectedKey) return 1;
+    return aircraftMap[ka].cs.localeCompare(aircraftMap[kb].cs);
+  });
+
+  const ul = document.getElementById('traffic-list');
+  ul.innerHTML = '';
+  for (const [k, a] of entries) {
+    const fl  = String(Math.round(a.alt / 100)).padStart(3,'0');
+    const spd = Math.round(a.speed);
+    const li  = document.createElement('li');
+    li.className = 'tr-row' + (k === selectedKey ? ' sel' : '');
+    li.innerHTML = `
+      <span class="tr-dot" style="background:${a.color}"></span>
+      <span class="tr-cs">${a.cs}</span>
+      <span class="tr-ty">${a.ac_type}</span>
+      <span class="tr-fl">FL${fl}</span>
+      <span class="tr-spd">${spd}kt</span>
+    `;
+    li.onclick = () => selectAircraft(k);
+    ul.appendChild(li);
   }
+}
 
-  // ═══════════════════════════════════════════
-  //  BOOT
-  // ═══════════════════════════════════════════
-  fetchAircraft();
-  setInterval(fetchAircraft, 5000);
+// ═══════════════════════════════════════════════════════
+//  UI — DETAIL PANEL
+// ═══════════════════════════════════════════════════════
+function refreshCard() {
+  const a = aircraftMap[selectedKey];
+  if (!a) return;
+  const fl = String(Math.round(a.alt / 100)).padStart(3,'0');
+  const vs = a.vspeed > 50 ? `+${a.vspeed}` : a.vspeed < -50 ? `${a.vspeed}` : '—';
+  document.getElementById('dp-callsign').textContent = a.cs;
+  document.getElementById('dp-airline').textContent  =
+    (a.origin !== '—' && a.dest !== '—') ? `${a.origin} → ${a.dest}` : a.ac_type;
+  document.getElementById('dp-type').textContent = a.ac_type;
+  document.getElementById('dp-fl').textContent   = `FL${fl}  (${a.alt} ft)`;
+  document.getElementById('dp-spd').textContent  = `${Math.round(a.speed)} kt`;
+  document.getElementById('dp-hdg').textContent  = `${Math.round(a.heading)}°`;
+  document.getElementById('dp-vs').textContent   = vs !== '—' ? `${vs} fpm` : '—';
+  document.getElementById('dp-sq').textContent   = a.squawk || '—';
+  document.getElementById('dp-from').textContent = a.origin;
+  document.getElementById('dp-to').textContent   = a.dest;
+}
+
+function loadModel(key) {
+  const a      = aircraftMap[key];
+  if (!a) return;
+  const typeUC = (a.ac_type || '').toUpperCase().replace(/-/g,'');
+  const ids    = SKETCHFAB.map[typeUC] || SKETCHFAB.DEFAULT;
+  const modelId = currentTab === 'cockpit' ? ids[1] : ids[0];
+
+  const iframe      = document.getElementById('dp-iframe');
+  const placeholder = document.getElementById('dp-placeholder');
+  const loading     = document.getElementById('dp-loading');
+
+  placeholder.style.display = 'none';
+  iframe.style.display      = 'none';
+  loading.classList.remove('hidden');
+
+  iframe.onload = () => {
+    loading.classList.add('hidden');
+    iframe.style.display = 'block';
+  };
+  iframe.src = sfEmbed(modelId);
+}
+
+function selectAircraft(key) {
+  selectedKey = key;
+  refreshCard();
+  loadModel(key);
+  document.getElementById('detail-panel').classList.add('open');
+
+  if (currentMode === 'FOLLOW') {
+    viewer.trackedEntity = aircraftMap[key]?.dot;
+  } else {
+    const a = aircraftMap[key];
+    if (a) viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(a.lon, a.lat, a.altM + 3500),
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-52), roll: 0 },
+      duration: 1.5,
+    });
+  }
+  refreshList();
+}
+
+function deselectAircraft() {
+  selectedKey = null;
+  viewer.trackedEntity = undefined;
+  document.getElementById('detail-panel').classList.remove('open');
+  const iframe = document.getElementById('dp-iframe');
+  iframe.src   = '';
+  iframe.style.display = 'none';
+  document.getElementById('dp-placeholder').style.display = 'flex';
+  refreshList();
+}
+
+// ═══════════════════════════════════════════════════════
+//  TABS — Aircraft / Cockpit
+// ═══════════════════════════════════════════════════════
+function setTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.dp-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (selectedKey) loadModel(selectedKey);
+}
+
+// ═══════════════════════════════════════════════════════
+//  CAMERA MODES
+// ═══════════════════════════════════════════════════════
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + mode).classList.add('active');
+  viewer.trackedEntity = undefined;
+
+  if (mode === 'FREE') {
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(-77.4565, 38.9531, 9000),
+      orientation: { heading: Cesium.Math.toRadians(345), pitch: Cesium.Math.toRadians(-42), roll: 0 },
+      duration: 1.5,
+    });
+    toast('Free camera');
+  } else if (mode === 'TOWER') {
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(-77.4563, 38.9507, 175),
+      orientation: { heading: Cesium.Math.toRadians(130), pitch: Cesium.Math.toRadians(-6), roll: 0 },
+      duration: 2.5,
+    });
+    toast('Tower view — KIAD Control Tower');
+  } else if (mode === 'FOLLOW') {
+    if (selectedKey && aircraftMap[selectedKey]) {
+      viewer.trackedEntity = aircraftMap[selectedKey].dot;
+      toast(`Following ${aircraftMap[selectedKey].cs}`);
+    } else {
+      toast('Click an aircraft to follow it');
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  CLICK HANDLER
+// ═══════════════════════════════════════════════════════
+const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+handler.setInputAction(click => {
+  const picked = viewer.scene.pick(click.position);
+  if (Cesium.defined(picked) && Cesium.defined(picked.id)) {
+    for (const [k, a] of Object.entries(aircraftMap)) {
+      if (a.dot === picked.id) { selectAircraft(k); return; }
+    }
+  }
+  if (currentMode === 'FREE') deselectAircraft();
+}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+// ═══════════════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════════════
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// ═══════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════
+fetchAircraft();
+setInterval(fetchAircraft, 5000);
 </script>
 </body>
 </html>
