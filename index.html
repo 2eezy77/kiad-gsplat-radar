@@ -262,7 +262,7 @@
   <div id="debug-panel" style="display:none;position:fixed;top:60px;left:12px;background:rgba(0,0,0,0.82);color:#ffff00;padding:10px;border-radius:6px;font:10px monospace;border:1px solid rgba(255,255,0,0.3);z-index:999;max-height:200px;overflow-y:auto;max-width:260px;white-space:pre-wrap;word-break:break-all;"></div>
 
   <script>
-    // ── API keys ──────────────────────────────────────────────────────────────
+    // ── API keys (injected by server.py from env vars — never hard-code here) ───
     const CESIUM_TOKEN = "__CESIUM_TOKEN__";
     const GOOGLE_KEY   = "__GOOGLE_KEY__";
     Cesium.Ion.defaultAccessToken = CESIUM_TOKEN;

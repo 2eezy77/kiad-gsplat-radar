@@ -9,8 +9,27 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/api/aircraft"):
             self.proxy_aircraft()
+        elif self.path in ("/", "/index.html"):
+            self.serve_index()
         else:
             super().do_GET()
+
+    def serve_index(self):
+        """Serve index.html, injecting API keys from the environment at request time."""
+        try:
+            with open("index.html", "rb") as f:
+                html = f.read().decode("utf-8")
+        except OSError:
+            self.send_error(404)
+            return
+        html = html.replace("__CESIUM_TOKEN__", os.environ.get("CESIUM_TOKEN", ""))
+        html = html.replace("__GOOGLE_KEY__", os.environ.get("GOOGLE_KEY", ""))
+        data = html.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def proxy_aircraft(self):
         try:
@@ -104,8 +123,23 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if not self.path.startswith("/api"):
             super().log_message(fmt, *args)
 
+def load_dotenv(path=".env"):
+    """Load KEY=VALUE pairs from a local .env file (git-ignored) if present.
+    Does not override variables already set in the environment."""
+    if not os.path.exists(path):
+        return
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            os.environ.setdefault(key.strip(), val.strip().strip('"').strip("'"))
+
+
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    load_dotenv()
     port = int(os.environ.get("PORT", 8080))
     print(f"Server running at http://localhost:{port}")
     http.server.HTTPServer(("", port), Handler).serve_forever()

@@ -78,9 +78,20 @@ The `web` process runs `python3 server.py`, and the app binds to the platform-pr
 
 ## Configuration & API keys
 
-The Cesium Ion token and Google Maps Tiles API key are set at the top of the `<script>` block in
-`index.html`. These are client-side keys embedded in the page; if you fork this project, replace
-them with your own and restrict the Google key by HTTP referrer in the Google Cloud console.
+The app needs a **Cesium Ion token** and a **Google Maps Tiles API key**. These are **not**
+stored in the repo — `server.py` injects them into `index.html` at request time from environment
+variables, so no secrets are committed.
+
+Provide them either as real environment variables or via a git-ignored `.env` file in the project
+root:
+
+```env
+CESIUM_TOKEN=your-cesium-ion-token
+GOOGLE_KEY=your-google-maps-tiles-key
+```
+
+Restrict the Google key by HTTP referrer in the Google Cloud console, and treat both keys as
+public once deployed (they are served to the browser). Rotate them if they are ever exposed.
 
 ## Notes
 

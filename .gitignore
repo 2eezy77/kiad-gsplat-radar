@@ -1,0 +1,8 @@
+# Local secrets — never commit API keys
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.pyc
