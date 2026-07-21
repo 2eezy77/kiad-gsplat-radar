@@ -1,20 +1,21 @@
-# KIAD ATC
+# Real-time geospatial traffic visualization (KIAD)
 
 **Author:** Jose I. Montero
 
-A browser-based 3D air-traffic-control view of **Washington Dulles International Airport (KIAD)**.
-It renders live aircraft over Google Photorealistic 3D Tiles and overlays the runway
-environment, ILS approaches, Class B/D airspace, and FAA-style separation-conflict detection.
+A browser-based **real-time 3D visualization** system using aviation traffic around
+**Washington Dulles (KIAD)** as the problem domain. It combines CesiumJS geospatial
+rendering, Google Photorealistic 3D Tiles, a live ADS-B ingest pipeline, layered
+airspace/procedure overlays, and a small UI for camera presets and conflict cues.
 
 Built on [CesiumJS](https://cesium.com/platform/cesiumjs/) with a tiny Python proxy that
-streams live ADS-B traffic.
+streams live ADS-B traffic to the client.
 
-![KIAD ATC — Tower view of finals and ILS](docs/kiad-atc-ui.jpg)
+![KIAD scene — tower view of finals and ILS](docs/kiad-atc-ui.jpg)
 
-*Tower (oblique) view of KIAD with ILS approach funnels, arrivals on final, and ATC panels.
+*Oblique camera over KIAD with ILS approach funnels, live traffic, and overlay panels.
 Photorealistic 3D tiles and Cesium terrain require `CESIUM_TOKEN` and `GOOGLE_KEY` in a local `.env` — see [Configuration](#configuration--api-keys).*
 
-### Portfolio screenshots
+### Screenshots
 
 | | |
 |:--|:--|
@@ -27,18 +28,18 @@ Photorealistic 3D tiles and Cesium terrain require `CESIUM_TOKEN` and `GOOGLE_KE
 
 ## Features
 
-- **Live traffic** — aircraft within 50 nm of KIAD, refreshed every 5 seconds, drawn as
+- **Live data pipeline** — aircraft within 50 nm of KIAD, refreshed every 5 seconds, drawn as
   type-matched 3D models (Flightradar24 open GLB models).
-- **Three ATC positions** — switch camera + visible layers to match a controller's job:
+- **Camera / layer presets** — switch viewpoint and visible layers for different ops views:
   - **RADAR · TRACON** — top-down, full Class B, all traffic
-  - **TWR · Local Control** — oblique tower view, Class D + ILS finals
-  - **GND · Ground Control** — overhead surface view of the airport
-- **Airspace & procedures overlays** — three parallel runways (01L/C/R ↔ 19R/C/L), ILS
+  - **TWR · Local** — oblique tower view, Class D + ILS finals
+  - **GND · Surface** — overhead surface view of the airport
+- **Geospatial overlays** — three parallel runways (01L/C/R ↔ 19R/C/L), ILS
   approach funnels and centerlines, shelved Class B rings, Class D, and arrival/departure routes.
-- **Separation-conflict detection** — flags loss of separation per FAA JO 7110.65
+- **Rule-based conflict cues** — flags loss of separation per FAA JO 7110.65
   (3 nm / 1000 ft radar separation, runway separation, and wake-turbulence advisories) with an
   on-screen banner and conflict lines between affected pairs.
-- **Interactive legend** — toggle individual overlay layers on/off.
+- **Layered UI** — toggle individual overlay layers on/off.
 - **Photorealistic base map** — Google Photorealistic 3D Tiles with automatic fallback to
   OpenStreetMap + Cesium World Terrain + Ion OSM buildings if unavailable.
 - **Mobile support** — works on iPhone with a touch-friendly floating panel UI.
@@ -50,7 +51,7 @@ Photorealistic 3D tiles and Cesium terrain require `CESIUM_TOKEN` and `GOOGLE_KE
 | Layer      | Technology                                                              |
 | ---------- | ----------------------------------------------------------------------- |
 | Rendering  | CesiumJS 1.115, Google Photorealistic 3D Tiles, Cesium Ion              |
-| Aircraft   | [adsb.lol](https://adsb.lol) (ADS-B Exchange feed) → OpenSky fallback   |
+| Live feed  | [adsb.lol](https://adsb.lol) (ADS-B Exchange feed) → OpenSky fallback   |
 | 3D models  | Flightradar24 open-source GLB aircraft models                           |
 | Backend    | Python 3.11 standard library (`http.server`) — static host + CORS proxy |
 | Frontend   | Single self-contained `index.html` (no build step)                      |
@@ -58,7 +59,7 @@ Photorealistic 3D tiles and Cesium terrain require `CESIUM_TOKEN` and `GOOGLE_KE
 ## Project structure
 
 ```
-index.html      Single-page app — Cesium scene, overlays, ATC logic, UI
+index.html      Single-page app — Cesium scene, overlays, domain logic, UI
 server.py       Static file server + /api/aircraft proxy (adsb.lol → OpenSky)
 .env.example    Placeholder env vars (CESIUM_TOKEN, GOOGLE_KEY, optional PORT)
 docs/           README screenshots
@@ -76,7 +77,7 @@ python3 server.py
 
 Then open <http://localhost:8080> (or the `PORT` from your `.env`, often `8877`).
 
-For clean portfolio / README framing (tower view, conflict banner suppressed):
+For a clean demo framing (tower view, conflict banner suppressed):
 
 ```text
 http://localhost:8877/?portfolio=1
@@ -126,8 +127,8 @@ public once deployed (they are served to the browser). Rotate them if they are e
 ## Notes
 
 - Runway thresholds and ILS geometry are derived from FAA NASR data.
-- Separation logic is an **educational visualization**, not an operational ATC tool, and must not
-  be used for real air-traffic decisions.
+- Separation logic is an **educational visualization**, not an operational air-traffic tool, and must not
+  be used for real traffic decisions.
 
 ## License
 
@@ -135,4 +136,4 @@ MIT — see [LICENSE](LICENSE).
 
 ---
 
-*KIAD ATC — a personal aviation dataviz project.*
+*Real-time geospatial viz demo — aviation as the domain.*
